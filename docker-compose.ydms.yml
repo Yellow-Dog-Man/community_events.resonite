@@ -6,6 +6,7 @@ services:
     profiles:
       - database
     restart: unless-stopped
+    ports: !reset []
     expose:
       - 5433
     secrets:
@@ -94,6 +95,7 @@ services:
     image: redis:7.0-alpine
     restart: always
     command: redis-server --save ""
+    ports: !reset []
     expose:
       - 6379
 
