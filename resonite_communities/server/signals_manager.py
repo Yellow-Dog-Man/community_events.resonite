@@ -46,14 +46,14 @@ discord_client = disnake.Client()
 
 intents = disnake.Intents.all()
 bot = disnake.ext.commands.InteractionBot(intents=intents)
-ad_bot = disnake.ext.commands.InteractionBot(intents=intents)
+#ad_bot = disnake.ext.commands.InteractionBot(intents=intents)
 
 # Scheduler initialization
 scheduler = AsyncIOScheduler(daemon=True)
 
 # Register clients
 Services.discord.bot = bot
-Services.discord.ad_bot = ad_bot #To be removed when removing AD_DISCORD_BOT_TOKEN
+#Services.discord.ad_bot = ad_bot #To be removed when removing AD_DISCORD_BOT_TOKEN
 Services.discord.client = discord_client
 Services.twitch = twitch_client
 
@@ -79,7 +79,7 @@ async def main():
                 bot.add_cog(signal_collector)
                 # FIXME: Remove this test when removing AD_DISCORD_BOT_TOKEN
                 # Ugly add a cog to a bot with another token
-                ad_bot.add_cog(obj(Config, Services, scheduler, True))
+                #ad_bot.add_cog(obj(Config, Services, scheduler, True))
             case SignalSchedulerType.APSCHEDULER:
                 logger.info(f'Setting up {signal_collector.name} collector as scheduled.')
                 signal_collector.init_scheduler()
