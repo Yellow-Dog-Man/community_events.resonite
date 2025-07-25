@@ -38,7 +38,7 @@ services:
       fi
       "
     volumes:
-      - "/home/root_man/.config/prod.community_events.resonite.toml:/app/config.toml"
+      - "./config.YDMS.toml:/app/config.toml"
     depends_on:
       database:
         condition: service_healthy
@@ -58,7 +58,7 @@ services:
       database:
         condition: service_healthy
     volumes:
-      - "/home/root_man/.config/prod.community_events.resonite.toml:/app/config.toml"
+      - "./config.YDMS.toml:/app/config.toml"
 
   api_client:
     build: .
@@ -72,7 +72,7 @@ services:
       database:
         condition: service_healthy
     volumes:
-      - "/home/root_man/.config/prod.community_events.resonite.toml:/app/config.toml"
+      - "./config.YDMS.toml:/app/config.toml"
     ports:
       - '9000:8000'
   web_client:
@@ -87,7 +87,7 @@ services:
       database:
         condition: service_healthy
     volumes:
-      - "/home/root_man/.config/prod.community_events.resonite.toml:/app/config.toml"
+      - "./config.YDMS.toml:/app/config.toml"
     ports:
       - '9001:8001'
 
