@@ -1,5 +1,7 @@
 Docker Compose 2.24.4 and later plz
 
-docker-compose -f docker-compose.yml -f docker-compose.ydms.yml --profile "*" up
+`docker compose --env-file .env -f stacks/prod/ydms.docker-compose.yml --profile "*" up`
 
-https://docs.docker.com/reference/compose-file/merge/#reset-value
+Occasionally, you'll need to force a fresh build which will be:
+
+`docker compose --env-file .env -f stacks/prod/ydms.docker-compose.yml --profile "*" up --force-recreate --build`
