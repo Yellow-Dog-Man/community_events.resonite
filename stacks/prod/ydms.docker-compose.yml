@@ -27,7 +27,7 @@ services:
     build: ../..
     command: >
       /bin/bash -c "
-      poetry run alembic upgrade head;
+      poetry run alembic upgrade heads;
       EXIT_CODE=$?;
       if [ $EXIT_CODE -ne 0 ]; then
         echo 'Alembic migration failed with exit code' $EXIT_CODE;
