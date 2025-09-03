@@ -20,6 +20,7 @@ class ConfigManager:
     def _load_infrastructure_config(self):
         optional_vars = [
             'PRIVATE_DOMAIN',
+            'SENTRY_DSN'
         ]
         required_vars = [
             'PUBLIC_DOMAIN',
@@ -29,8 +30,7 @@ class ConfigManager:
             'SECRET',
             'DISCORD_CLIENT_ID',
             'DISCORD_SECRET',
-            'DISCORD_REDIRECT_URL',
-            'SENTRY_DSN',
+            'DISCORD_REDIRECT_URL'
         ]
         config = {}
         missing_vars = []
