@@ -27,17 +27,18 @@ document.addEventListener('alpine:init', () => {
 
             const CopyFacetResoniteDBUrl = document.querySelector('.js-copy-facet-url');
 
-            function resetCopyBtn(oldStatus) {
+            function resetCopyBtn(oldStatus, oldHtml) {
                 CopyFacetResoniteDBUrl.classList.remove(oldStatus);
                 CopyFacetResoniteDBUrl.classList.add('is-dark');
-                CopyFacetResoniteDBUrl.querySelector('span').innerHTML = 'Copy facet folder url';
+                CopyFacetResoniteDBUrl.querySelector('span').innerHTML = oldHtml;
             }
 
             function setStatusCopyBtn(msg, status) {
+                var old = CopyFacetResoniteDBUrl.querySelector('span').innerHTML;
                 CopyFacetResoniteDBUrl.querySelector('span').innerHTML = msg;
                 CopyFacetResoniteDBUrl.classList.remove('is-dark');
                 CopyFacetResoniteDBUrl.classList.add(status);
-                setTimeout(function () { resetCopyBtn(status); }, 3000);
+                setTimeout(function () { resetCopyBtn(status, oldHtml); }, 3000);
             }
 
             try {
