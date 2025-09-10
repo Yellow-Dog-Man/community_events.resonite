@@ -4,8 +4,8 @@ services:
     profiles:
       - database
     restart: unless-stopped
-    ports:
-      - 5433:5432
+    expose:
+      - 5432
     secrets:
       - postgres_password
       - postgres_user
