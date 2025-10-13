@@ -1,5 +1,6 @@
 from typing import Any
 from datetime import datetime, timezone
+import traceback
 
 from disnake.ext import commands
 from sqlalchemy import select, func
@@ -45,6 +46,7 @@ class DiscordEventsCollector(EventsCollector, commands.Cog):
 
         self.communities = []
         for guild_bot in discord_bot.guilds:
+            self.logger.info(f"Updating database community {guild_bot.name} information from Discord.")
             external_id = str(guild_bot.id)
             community = database_communities.get(external_id)
 
@@ -342,15 +344,20 @@ class DiscordEventsCollector(EventsCollector, commands.Cog):
                 self.logger.warning(f'Community {community.name} not configured, skipping')
                 continue
 
-            self.logger.info(f'Collecting signals for {community.name}')
+            try:
+                self.logger.info(f'Collecting signals for {community.name}')
 
-            events = community.config['bot'].scheduled_events
+                events = community.config['bot'].scheduled_events
 
-            await self.upsert_events(events, community)
+                await self.upsert_events(events, community)
 
-            await self.detect_and_handle_passed_events(events, community)
+                await self.detect_and_handle_passed_events(events, community)
 
-            await self.detect_and_handle_duplicates(community)
+                await self.detect_and_handle_duplicates(community)
+            except Exception as e:
+                self.logger.error(f"Error processing community {community.name}: {str(e)}")
+                self.logger.error(f"Traceback: {traceback.format_exc()}")
+                continue
 
         self.logger.info(f'Finished collecting signals')
 
