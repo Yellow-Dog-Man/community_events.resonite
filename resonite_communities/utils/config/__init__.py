@@ -61,6 +61,9 @@ class ConfigManager:
             'SECRET_KEY',
             'SECRET',
             'API_CLIENT_URL',
+            'DISCORD_CLIENT_ID',
+            'DISCORD_SECRET',
+            'DISCORD_REDIRECT_URL',
         ]
 
         defaults = {
