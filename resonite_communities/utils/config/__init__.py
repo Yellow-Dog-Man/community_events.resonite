@@ -60,10 +60,6 @@ class ConfigManager:
             'DATABASE_URL',
             'SECRET_KEY',
             'SECRET',
-            'DISCORD_CLIENT_ID',
-            'DISCORD_SECRET',
-            'DISCORD_REDIRECT_URL'
-            'DISCORD_REDIRECT_URL',
             'API_CLIENT_URL',
         ]
 
