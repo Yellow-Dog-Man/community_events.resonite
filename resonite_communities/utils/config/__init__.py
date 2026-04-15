@@ -54,6 +54,7 @@ class ConfigManager:
             'MAX_CONCURRENT_REQUESTS',
             'CACHE_URL',
             'DB_APPLICATION_NAME',
+            'SENTRY_DSN'
         ]
         required_vars = [
             'PUBLIC_DOMAIN',
