@@ -65,7 +65,7 @@ async def main():
         Services.discord.client = discord_client
         Services.twitch = twitch_client
 
-        if config.SENTRY_DSN:
+        if "SENTRY_DSN" in config:
 
             sentry_sdk.init(
                 dsn=config.SENTRY_DSN,
