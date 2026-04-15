@@ -5,6 +5,7 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
+import sentry_sdk
 
 from resonite_communities.auth.users import fastapi_users, auth_backend
 from resonite_communities.clients.web.auth import discord_oauth
@@ -16,11 +17,36 @@ from resonite_communities.clients.web.routers import (
 )
 from resonite_communities.clients.web.routers.admin import metrics, events, communities, users, configuration
 from resonite_communities.clients.middleware.metrics import MetricsMiddleware
+from resonite_communities.clients.middleware.rate_limit import RateLimitMiddleware
 from resonite_communities.clients.utils.geoip import get_geoip_db_path
 
 from resonite_communities.utils.config import ConfigManager
 
+# Ensure models are loaded for SQLAlchemy relationship resolution
+from resonite_communities.models.signal import Event, Stream
+from resonite_communities.models.community import Community
+
 config_manager = ConfigManager()
+
+if config_manager.infrastructure_config.SENTRY_DSN:
+
+    sentry_sdk.init(
+        dsn=config_manager.infrastructure_config.SENTRY_DSN,
+        # Add data like request headers and IP for users,
+        # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
+        send_default_pii=True,
+        # Enable sending logs to Sentry
+        enable_logs=True,
+        # Set traces_sample_rate to 1.0 to capture 100%
+        # of transactions for tracing.
+        traces_sample_rate=1.0,
+        # Set profile_session_sample_rate to 1.0 to profile 100%
+        # of profile sessions.
+        profile_session_sample_rate=1.0,
+        # Set profile_lifecycle to "trace" to automatically
+        # run the profiler on when there is an active transaction
+        profile_lifecycle="trace",
+    )
 
 app = FastAPI()
 app.secret = config_manager.infrastructure_config.SECRET
@@ -43,6 +69,10 @@ class DatabaseSessionMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(MetricsMiddleware, db_path=get_geoip_db_path())
+app.add_middleware(
+    RateLimitMiddleware,
+    max_concurrent_requests=config_manager.infrastructure_config.MAX_CONCURRENT_REQUESTS
+)
 app.add_middleware(DatabaseSessionMiddleware)
 
 app.include_router(logout.router)

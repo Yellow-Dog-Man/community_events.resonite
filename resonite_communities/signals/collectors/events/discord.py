@@ -1,3 +1,4 @@
+import re
 from typing import Any
 from datetime import datetime, timezone
 import traceback
@@ -6,7 +7,7 @@ from disnake.ext import commands
 from sqlalchemy import select, func
 from sqlmodel import Session
 
-from resonite_communities.utils.db import engine
+from resonite_communities.utils.db import engine, async_request_session
 from resonite_communities.models.community import Community, CommunityPlatform
 from resonite_communities.models.signal import Event, EventStatus
 from resonite_communities.signals import SignalSchedulerType
@@ -70,7 +71,7 @@ class DiscordEventsCollector(EventsCollector, commands.Cog):
                         (Community.platform == CommunityPlatform.DISCORD) &
                         (Community.platform_on_remote == None)
                     ),
-                    monitored=community.monitored,
+                    monitored=True,
                     configured=community.configured,
                     ad_bot_configured=ad_bot_configured,
                     logo=guild_bot.icon.url if guild_bot.icon else "",
@@ -111,6 +112,39 @@ class DiscordEventsCollector(EventsCollector, commands.Cog):
                 (not local_event_end_time and local_event.start_time < datetime.now(timezone.utc))
         ):
             return True
+
+    def determine_event_visibility(self, event: Any, community: Any) -> str:
+        """Determine if an event should be tagged as 'public' or 'private'.
+
+        This implements a "secure by default" approach where events default to private
+        unless explicitly configured otherwise.
+
+        Logic:
+            - If event is in the configured private_channel_id -> 'private'
+            - If community is EXPLICITLY public-only (no 'private' tag) -> 'public'
+            - Otherwise (mixed communities, private-only, or unconfigured) -> 'private' (secure default)
+        """
+        private_channel_id = str(community.config.get('private_channel_id')) if community.config.get('private_channel_id') else None
+        event_channel_id = str(event.channel_id) if event.channel_id else None
+
+        community_tags = community.tags.split(',')
+
+        # If event is explicitly in the configured private channel, it's private.
+        if event_channel_id and private_channel_id == event_channel_id:
+            return 'private'
+
+        # Community is EXPLICITLY public-only (has 'public' tag and NO 'private' tag).
+        if 'public' in community_tags and 'private' not in community_tags:
+            return 'public'
+
+        # Community has both 'private' AND 'public' tags, AND
+        #       (event has no audio channel OR its audio channel ID is NOT the one configured as "private").
+        if 'public' in community_tags and 'private' in community_tags and \
+            (event_channel_id is None or event_channel_id != private_channel_id):
+            return 'public'
+
+        # Secure default: private for all other cases
+        return 'private'
 
     async def detect_and_handle_duplicates(self, community: Any) -> None:
             """ Detect and handle duplicate events for a given community.
@@ -235,9 +269,21 @@ class DiscordEventsCollector(EventsCollector, commands.Cog):
         and tags them with platform-specific tags like 'resonite' or 'vrchat' based on
         content analysis of event details.
 
+        Extracts metadata from event descriptions using a special format. Metadata lines
+        in the descriptions following the pattern '+key:value' are parsed and processed,
+        then removed from the final description. Supported metadata fields:
+
+        - '+language:code1,code2,...' - Adds language tags in the format 'lang:code'
+        - '+tags:custom_tag' - Adds custom tags directly to the event
+
         Args:
             events (list[Any]): List of Event objects to be processed and upserted.
             community (Any): Community object these events belong to.
+
+        Note:
+            Metadata extraction uses regex pattern '^\\+(.*?):(.*)\\n?' to match lines
+            starting with '+' followed by key:value pairs. Matched lines are removed
+            from the description after processing.
         """
         for event in events:
 
@@ -265,37 +311,30 @@ class DiscordEventsCollector(EventsCollector, commands.Cog):
             ):
                 tags.add('vrchat')
 
-            # Handle public vs private event tagging based on community configuration
-            if 'public' in community.tags.split(','):
-                # For public communities, check if event is in private channel
-                if community.config.get('private_channel_id', None):
-                    if community.config['private_channel_id'] == event.channel_id:
-                        tags.add('private')
-                # Default to 'public' if not explicitly private and not already tagged
-                if 'private' not in tags and 'public' not in tags:
-                    tags.add('public')
+            # Determine event visibility using the extracted method
+            visibility = self.determine_event_visibility(event, community)
+            tags.add(visibility)
 
-            elif 'private' in community.tags.split(','):
-                # For private communities, check if event is in public channel
-                if community.config.get('public_channel_id', None):
-                    if community.config['public_channel_id'] == event.channel_id:
-                        tags.add('public')
-                # Default to 'private' if not explicitly public and not already tagged
-                if 'public' not in tags and 'private' not in tags:
-                    tags.add('private')
+            # Extract metadata from description
+            pattern = r'^\+(.*?):(.*)\n?'
+            matches = dict(re.findall(pattern, event.description, re.MULTILINE))
+            if 'language' in matches:
+                langs = [f'lang:{tag.strip()}' for tag in matches['language'].split(",")]
+                for lang in langs:
+                    tags.add(lang)
+            if 'tags' in matches:
+                tags.add(matches['tags'].rstrip())
+            description = re.sub(pattern, '', event.description, flags=re.MULTILINE)
 
-            else:
-                # No assumption if neither 'public' or 'private' tag detected
-                # Log an error and skip all the events of this community
-                self.logger.error(f"Community {community.name} have no tags, skipping all events")
-                self.logger.error(f"Please add 'public' or 'private' tag to this community")
-                break
+            # Guess language from community
+            if 'lang' not in tags and community.languages:
+                tags.add(f"lang:{community.languages.split(',')[0]}")
 
             await self.model.upsert(
                 _filter_field='external_id',
                 _filter_value=str(event.id),
                 name=event.name,
-                description=event.description,
+                description=description,
                 session_image=event.image.url if event.image else None,
                 location=event.entity_metadata.location if event.entity_metadata else None,
                 location_web_session_url=self.get_location_web_session_url(event.description),
@@ -307,6 +346,9 @@ class DiscordEventsCollector(EventsCollector, commands.Cog):
                 external_id=str(event.id),
                 scheduler_type=self.scheduler_type.name,
                 created_at_external=event.created_at,
+                is_private='private' in tags,
+                is_resonite='resonite' in tags,
+                is_vrchat='vrchat' in tags,
             )
 
     async def detect_and_handle_passed_events(self, events: list[Any], community: Any) -> None:
@@ -337,32 +379,34 @@ class DiscordEventsCollector(EventsCollector, commands.Cog):
 
     async def collect(self):
         await super().collect()
-        self.logger.info(f'Starting collecting signals')
-        await self.update_communities()
-        for community in self.communities:
-            if not community.configured:
-                self.logger.warning(f'Community {community.name} not configured, skipping')
-                continue
+        async with async_request_session():
+            self.logger.info(f'Starting collecting signals')
+            await self.update_communities()
+            for community in self.communities:
+                if not community.configured:
+                    self.logger.warning(f'Community {community.name} not configured, skipping')
+                    continue
 
-            try:
-                self.logger.info(f'Collecting signals for {community.name}')
+                try:
+                    self.logger.info(f'Collecting signals for {community.name}')
 
-                events = community.config['bot'].scheduled_events
+                    events = community.config['bot'].scheduled_events
 
-                await self.upsert_events(events, community)
+                    await self.upsert_events(events, community)
 
-                await self.detect_and_handle_passed_events(events, community)
+                    await self.detect_and_handle_passed_events(events, community)
 
-                await self.detect_and_handle_duplicates(community)
-            except Exception as e:
-                self.logger.error(f"Error processing community {community.name}: {str(e)}")
-                self.logger.error(f"Traceback: {traceback.format_exc()}")
-                continue
+                    await self.detect_and_handle_duplicates(community)
+                except Exception as e:
+                    self.logger.error(f"Error processing community {community.name}: {str(e)}")
+                    self.logger.error(f"Traceback: {traceback.format_exc()}")
+                    continue
 
-        self.logger.info(f'Finished collecting signals')
+            self.logger.info(f'Finished collecting signals')
 
     @commands.Cog.listener()
     async def on_ready(self):
-        self.logger.info(f'Discord collector bot {self.name} ready')
-        await self.update_communities()
-        await self.init_scheduler()
+        async with async_request_session():
+            self.logger.info(f'Discord collector bot {self.name} ready')
+            await self.update_communities()
+            await self.init_scheduler()

@@ -165,3 +165,4 @@ backups/*
 data/*
 config.YDMS.toml
 migrations/versions/initialize_default_config.py
+.envrc.d/*

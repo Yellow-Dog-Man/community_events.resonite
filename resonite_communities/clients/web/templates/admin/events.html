@@ -1,6 +1,6 @@
 {% extends "admin/base.html" %}
 {% block alpine_components_head %}
-<script src="/static/js/alpine/pages/admin_events.js"></script>
+<script defer src="/static/js/alpine/pages/admin_events.js"></script>
 {% endblock %}
 {% block extended_head %}
 <script src="/static/js/notification.js"></script>
@@ -15,68 +15,185 @@
 
 {% block content %}
 
-<table class="table is-fullwidth">
-    <thead>
-        <tr>
-            <th>Name</th>
-            <th style="text-align: right;">Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for event in events %}
-        <tr>
-            <td>
-                <div class="columns">
-                    <div class="column">
-                        <p class="is-size-5 has-text-left is-inline-block">{{ event.name }}</p>
-                        {% if event.session_image %}
-                        <span class="icon">
-                            <i class="mdi mdi-image-area"></i>
-                        </span>
-                        {% endif %}
+<div x-data="{ ...eventsPage(), ...eventModal() }" x-init="init()">
+    <div class="columns">
+        <div class="column is-narrow">
+            <div class="field">
+                <label class="label">Community</label>
+                <div class="control">
+                    <div class="select">
+                        <select x-model="selectedCommunity" @change="loadEvents(selectedCommunity, selectedPlatformFilter, selectedDateFilter)">
+                            <option value="">All Communities</option>
+                            {% for community in communities %}
+                                <option value="{{ community.id }}" :selected="'{{ community.id }}' === selectedCommunity">{{ community.name }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
-                    <p class="column is-size-6 has-text-right">
-                        <span class="fixed-width has-text-right">
-                            {{ event.start_time.strftime('%Y-%m-%d %H:%M') if event.start_time else '' }}
-                        </span>
-                        <span> - </span>
-                        <span class="fixed-width has-text-left">
-                            {{ event.end_time.strftime('%Y-%m-%d %H:%M') if event.end_time else '' }}
-                        </span>
-                    </p>
                 </div>
-                <p class="is-size-7">{{ event.description }}</p>
-                <br>
-                <p class="is-size-6">{{ event.community.name }}</p>
-            </td>
-            <td style="text-align: right;">
-                <div>
-                    <div class="dropdown" x-data="{ ...eventStatusDropdown(), open: false }" @click.outside="open = false" :class="{ 'is-active': open }">
-                        <div class="dropdown-trigger">
-                            <button class="button" aria-haspopup="true" aria-controls="dropdown-menu" @click="open = ! open">
-                                <span x-ref="statusText">{{ event.status.value }}</span>
-                                <span class="icon is-small">
-                                    <i class="fas fa-angle-down" aria-hidden="true"></i>
-                                </span>
-                            </button>
+            </div>
+        </div>
+        <div class="column is-narrow">
+            <div class="field">
+                <label class="label">Platform Filter</label>
+                <div class="control">
+                    <div class="select">
+                        <select x-model="selectedPlatformFilter" @change="loadEvents(selectedCommunity, selectedPlatformFilter, selectedDateFilter)">
+                            <option value="">Resonite Only (Default)</option>
+                            <option value="none">No Platform Tag</option>
+                            <option value="vrchat">VR Chat</option>
+                            <option value="all">All Platforms</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="column is-narrow">
+            <div class="field">
+                <label class="label">Starting date</label>
+                <div class="control">
+                    <input
+                        class="input"
+                        type="date"
+                        x-model="selectedDateFilter"
+                        @change="loadEvents(selectedCommunity, selectedPlatformFilter, selectedDateFilter)"
+                    >
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="columns is-centered">
+            <div class="column is-4">
+                <span class="tag is-info is-light">
+                <span class="icon"><i class="fa-solid fa-circle-info"></i></span>
+                <span x-text="`Only events starting ${selectedDateFilter === new Date().toISOString().split('T')[0] ? 'today' : selectedDateFilter} and later are visible in this list.`"></span>
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <table class="table is-fullwidth">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th style="text-align: right;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            <template x-for="event in events" :key="event.id">
+                <tr>
+                    <td>
+                        <div class="columns">
+                            <div class="column">
+                                <p class="is-size-5 has-text-left is-inline-block" x-text="event.name"></p>
+                                <template x-if="event.session_image">
+                                    <div class="dropdown is-hoverable is-inline-block">
+                                        <div class="dropdown-trigger">
+                                            <span class="icon">
+                                                <i class="mdi mdi-image-area"></i>
+                                            </span>
+                                        </div>
+                                        <div class="dropdown-menu" role="menu">
+                                            <div class="dropdown-content">
+                                                <div class="dropdown-item">
+                                                    <img :src="event.session_image" alt="Session Image" style="max-width: 200px; height: auto;">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                            <p class="column is-size-6 has-text-right">
+                                <span class="fixed-width has-text-right" x-text="event.start_time ? event.start_time.replace('T', ' ').replace('Z', '') : ''"></span>
+                                <span> - </span>
+                                <span class="fixed-width has-text-left" x-text="event.end_time ? event.end_time.replace('T', ' ').replace('Z', '') : ''"></span>
+                            </p>
                         </div>
-                        <div class="dropdown-menu" role="menu">
-                            <div class="dropdown-content">
-                                    <a class="dropdown-item" data-status="CANCELED" data-event_id="{{ event.id }}" @click="updateStatus('{{ event.id }}', 'CANCELED'); open = false">CANCELED</a>
-                                    <a class="dropdown-item" data-status="ACTIVE" data-event_id="{{ event.id }}" @click="updateStatus('{{ event.id }}', 'ACTIVE'); open = false">ACTIVE</a>
-                                    <a class="dropdown-item" data-status="PENDING" data-event_id="{{ event.id }}" @click="updateStatus('{{ event.id }}', 'PENDING'); open = false">PENDING</a>
-                                    <a class="dropdown-item" data-status="READY" data-event_id="{{ event.id }}" @click="updateStatus('{{ event.id }}', 'READY'); open = false">READY</a>
-                                    <a class="dropdown-item" data-status="COMPLETED" data-event_id="{{ event.id }}" @click="updateStatus('{{ event.id }}', 'COMPLETED'); open = false">COMPLETED</a>
+                        <div x-data="{ showDescription: false }" style="position: relative;">
+                            <button class="button is-info is-light is-small" @click="showDescription = !showDescription">
+                                <span class="icon is-small">
+                                    <i class="fas fa-info-circle"></i>
+                                </span>
+                                <span x-text="showDescription ? 'Hide Description' : 'Show Description'"></span>
+                            </button>
+                            <div class="content has-background-light p-2 mt-2" x-show="showDescription" style="position: relative; max-height: 150px; overflow-y: auto; max-width: 600px; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+                                <p class="is-size-7" x-text="event.description"></p>
+                            </div>
+                        </div>
+                        <br>
+                        <p class="is-size-6" x-text="event.community_name"></p>
+                    </td>
+                    <td style="text-align: right;">
+                        <div class="buttons is-right">
+                            <button class="button is-danger" @click="deleteEvent(event.id)">
+                                <span class="icon is-small">
+                                    <i class="fas fa-trash-alt"></i>
+                                </span>
+                                <span>Delete</span>
+                            </button>
+                            <div class="dropdown" x-data="{ ...eventStatusDropdown(), open: false }" @click.outside="open = false" :class="{ 'is-active': open }">
+                                <div class="dropdown-trigger">
+                                    <button class="button" aria-haspopup="true" aria-controls="dropdown-menu" @click="open = ! open">
+                                        <span x-ref="statusText" x-text="event.status"></span>
+                                        <span class="icon is-small">
+                                            <i class="fas fa-angle-down" aria-hidden="true"></i>
+                                        </span>
+                                    </button>
+                                </div>
+                                <div class="dropdown-menu" role="menu">
+                                    <div class="dropdown-content">
+                                        <a class="dropdown-item" @click="updateStatus(event.id, 'CANCELED'); open = false">CANCELED</a>
+                                        <a class="dropdown-item" @click="updateStatus(event.id, 'ACTIVE'); open = false">ACTIVE</a>
+                                        <a class="dropdown-item" @click="updateStatus(event.id, 'PENDING'); open = false">PENDING</a>
+                                        <a class="dropdown-item" @click="updateStatus(event.id, 'READY'); open = false">READY</a>
+                                        <a class="dropdown-item" @click="updateStatus(event.id, 'COMPLETED'); open = false">COMPLETED</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            </template>
+        </tbody>
+    </table>
+
+    <template x-if="events.length === 0">
+        <section class="section">
+            <div class="container">
+                <div class="columns is-centered">
+                    <div class="column is-4">
+                        <div class="card" style="border: 1px solid #ccc;">
+                            <div class="card-content">
+                                <p class="content">
+                                No events available for this community and filter.
+                                </p>
                             </div>
                         </div>
                     </div>
                 </div>
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+            </div>
+        </section>
+    </template>
 
-<div id="notifications"></div>
+    <div class="modal" x-show="isOpen" :class="{ 'is-active': isOpen }" x-cloak>
+        <div class="modal-background" @click="closeModal()"></div>
+        <div class="modal-card">
+            <header class="modal-card-head">
+                <p class="modal-card-title" x-text="modalTitle"></p>
+                <button class="delete" aria-label="close" @click="closeModal()"></button>
+            </header>
+            <section class="modal-card-body" x-html="modalBodyContent" id="modal-body">
+                <!-- Content will be dynamically injected here -->
+            </section>
+            <footer class="modal-card-foot">
+                <button class="button is-success" @click="saveCallback()" x-text="modalActionButtonText"></button>
+                <button class="button" @click="closeModal()">Cancel</button>
+            </footer>
+        </div>
+    </div>
+
+    <div id="notifications"></div>
+</div>
 
 {% endblock content %}

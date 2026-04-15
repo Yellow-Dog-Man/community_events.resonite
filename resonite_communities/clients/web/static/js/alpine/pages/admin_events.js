@@ -1,4 +1,109 @@
 document.addEventListener('alpine:init', () => {
+    Alpine.data('eventsPage', () => ({
+        events: [],
+        selectedCommunity: '',
+        selectedPlatformFilter: '',
+        selectedDateFilter: '',
+
+        init() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const communityId = urlParams.get('community_id');
+            const platformFilter = urlParams.get('platform_filter');
+            const start_date = urlParams.get('start_date');
+
+            if (communityId) {
+                this.selectedCommunity = communityId;
+            }
+            if (platformFilter) {
+                this.selectedPlatformFilter = platformFilter;
+            }
+            if (start_date) {
+                this.selectedDateFilter = start_date;
+            } else {
+                this.selectedDateFilter = new Date().toISOString().split('T')[0];
+            }
+
+            this.loadEvents(this.selectedCommunity, this.selectedPlatformFilter, this.selectedDateFilter, false);
+        },
+
+        async loadEvents(communityId = '', platformFilter = '', dateFilter = '', changeURL = true) {
+            this.selectedCommunity = communityId;
+            this.selectedPlatformFilter = platformFilter;
+            this.selectedDateFilter = dateFilter;
+
+            let url = '/v2/admin/events';
+            const params = new URLSearchParams();
+
+            if (this.selectedCommunity) {
+                params.append('community_id', this.selectedCommunity);
+            }
+            if (this.selectedPlatformFilter) {
+                params.append('platform_filter', this.selectedPlatformFilter);
+            }
+            if (this.selectedDateFilter) {
+                params.append('start_date', this.selectedDateFilter);
+            }
+
+            if (params) {
+                url += `?${params.toString()}`;
+            }
+
+            if (changeURL) {
+                let pageUrl = '/admin/events';
+                if (params) {
+                    pageUrl += `?${params.toString()}`;
+                }
+                history.replaceState({}, '', pageUrl);
+            }
+
+            try {
+                const response = await fetch(url, {
+                    credentials: 'include'
+                });
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch events: ${response.statusText}`);
+                }
+                this.events = await response.json();
+                console.log('Events loaded:', this.events);
+            } catch (error) {
+                console.error('Error loading events:', error);
+                createNotification('Failed to load events', 'is-danger');
+                this.events = [];
+            }
+        },
+
+        async deleteEvent(event_id) {
+            this.openModal(
+                'Delete Event',
+                'Delete',
+                '<p>Are you sure you want to delete this event? This action cannot be undone.</p>',
+                async () => {
+                    try {
+                        const response = await fetch(`/v2/admin/events/${event_id}`, {
+                            method: 'DELETE',
+                            credentials: 'include'
+                        });
+
+                        if (response.ok) {
+                            const result = await response.json();
+                            console.log('Event deleted successfully', result);
+                            createNotification('Event deleted successfully', 'is-success');
+                            this.events = this.events.filter(event => event.id !== event_id);
+                        } else {
+                            const result = await response.json();
+                            console.error('Failed to delete event:', result);
+                            createNotification(`Failed to delete event: ${result.detail || 'Unknown error'}`, 'is-danger');
+                        }
+                    } catch (error) {
+                        console.error('Error deleting event:', error);
+                        createNotification('An unexpected error occurred while deleting the event. Please try again later.', 'is-danger');
+                    }
+                    this.closeModal();
+                }
+            );
+        }
+    }));
+
     Alpine.data('eventStatusDropdown', () => ({
         async updateStatus(event_id, status) {
             console.log('Status selected: ', status);
@@ -7,6 +112,7 @@ document.addEventListener('alpine:init', () => {
             try {
                 const response = await fetch('/v2/admin/events/update_status', {
                     method: 'POST',
+                    credentials: 'include',
                     headers: {
                         'Content-Type': 'application/json'
                     },
@@ -53,6 +159,29 @@ document.addEventListener('alpine:init', () => {
                 console.log(error)
                 createNotification('An unexpected error occurred. Please try again later.', 'is-danger');
             }
+        }
+    }));
+
+    Alpine.data('eventModal', () => ({
+        isOpen: false,
+        modalTitle: '',
+        modalBodyContent: '',
+        modalActionButtonText: '',
+        saveCallback: () => {},
+
+        openModal(title, actionButtonText, content, saveCallback) {
+            this.modalTitle = title;
+            this.modalBodyContent = content;
+            this.modalActionButtonText = actionButtonText;
+            this.saveCallback = saveCallback || (() => {});
+            this.isOpen = true;
+            document.documentElement.classList.add('no-scroll');
+        },
+
+        closeModal() {
+            this.isOpen = false;
+            document.documentElement.classList.remove('no-scroll');
+            this.modalBodyContent = '';
         }
     }));
 });

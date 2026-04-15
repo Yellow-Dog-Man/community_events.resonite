@@ -31,6 +31,8 @@ class TwitchStreamsCollector(StreamsCollector):
             except ValueError as exc:
                 self.logger.error(exc)
                 continue
+            if not 'followers' in broadcaster['twitch'] or not 'profile_image_url' in broadcaster['twitch']:
+                continue
             await Community.upsert(
                 _filter_field=['external_id', 'platform'],
                 _filter_value=[streamer.external_id, CommunityPlatform.TWITCH],
@@ -38,8 +40,8 @@ class TwitchStreamsCollector(StreamsCollector):
                 platform=CommunityPlatform.TWITCH,
                 monitored=streamer.monitored,
                 external_id=streamer.external_id,
-                members_count=broadcaster['twitch']['followers']['total'],
-                logo=broadcaster['twitch']['profile_image_url'],
+                members_count=broadcaster.get('twitch', {}).get('followers', {}).get('total', 0),
+                logo=broadcaster.get('twitch', {}).get('profile_image_url', None),
             )
             if not any(b.get('id') == broadcaster['twitch']['id'] for b in self.broadcasters):
                 self.broadcasters.append(broadcaster)

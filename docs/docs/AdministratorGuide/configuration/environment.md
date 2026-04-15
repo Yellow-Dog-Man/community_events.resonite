@@ -13,6 +13,7 @@ These variables must be set for the application to function properly.
 | Variable | Type | Description |
 | :--- | :--- | :--- |
 | `PUBLIC_DOMAIN` | `str` | The domain used by the HTTP API to show only the public events |
+| `API_CLIENT_URL` | `str` | The URL used by the web client to communicate with the API client |
 | `DATABASE_URL` | `str` | The PostgreSQL database URL |
 | `CACHE_URL` | `str` | The Redis database URL |
 | `SECRET_KEY` | `str` | A secret key used to handle the authentication system |
@@ -36,11 +37,12 @@ Some of these variables have default values and can be customized as needed.
 
 | Variable | Type | Description |
 | :--- | :--- | :--- |
-| `DB_POOL_SIZE` | `int` | Database connection pool size (default: 6) |
-| `DB_MAX_OVERFLOW` | `int` | Maximum overflow connections for database pool (default: 8) |
+| `DB_POOL_SIZE` | `int` | Database connection pool size (default: 5) |
+| `DB_MAX_OVERFLOW` | `int` | Maximum overflow connections for database pool (default: 5) |
 | `DB_POOL_TIMEOUT` | `int` | Database connection timeout in seconds (default: 30) |
 | `DB_POOL_RECYCLE` | `int` | Database connection recycle time in seconds (default: 1800) |
 | `DB_POOL_PRE_PING` | `bool` | Whether to pre-ping database connections (default: true) |
+| `DB_APPLICATION_NAME` | `str` | Name of the application in the database (default: auto detected but always start with `resonite-communities-` and end with either `api-client`, `web-client`, `signals-manager` or default to `app`)  |
 
 ### Application Workers
 
@@ -54,6 +56,33 @@ Some of these variables have default values and can be customized as needed.
     Keep in mind that the signal manager is counted as 1 worker and is not configurable yet.
 
 ## Configuration Guides
+
+### API Client URL vs Public Domain
+
+These variables serve different purposes:
+
+- **`PUBLIC_DOMAIN`**: Used by the API client to validate incoming request domains
+- **`PRIVATE_DOMAIN`**: Used by the API client to validate incoming request domains for private content
+- **`API_CLIENT_URL`**: Used by the web client to know where to send HTTP requests to the API client
+
+**Examples:**
+
+**Local Development:**
+```toml
+PUBLIC_DOMAIN = "resonite-communities.local"
+API_CLIENT_URL = "http://resonite-communities.local"
+```
+
+**Production:**
+```toml
+PUBLIC_DOMAIN = "resonite-communities.com"
+API_CLIENT_URL = "https://resonite-communities.com"
+```
+
+**Docker Service Communication:**
+```toml
+API_CLIENT_URL = "http://api_client_community:8000"
+```
 
 ### Domain Setup
 

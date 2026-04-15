@@ -5,7 +5,7 @@ from typing import Optional, Any
 
 from sqlalchemy import select, inspect, desc, asc, ClauseElement
 from sqlalchemy.dialects.postgresql import insert as dialects_insert
-from sqlalchemy.orm import RelationshipProperty, joinedload
+from sqlalchemy.orm import RelationshipProperty, selectinload
 from sqlmodel import SQLModel
 
 
@@ -16,8 +16,10 @@ from resonite_communities.utils.db import get_current_async_session
 logger = get_logger('BaseModel')
 
 
-class BaseModel(SQLModel):
-    insert_only_fields: ClassVar[list[str]]= ['created_at']
+class DatabaseMethodsMixin:
+    """Mixin providing custom database methods for SQLAlchemy models"""
+
+    insert_only_fields: ClassVar[list[str]] = ['created_at']
     update_only_fields: ClassVar[list[str]] = ['updated_at']
 
     def __str__(self):
@@ -131,7 +133,6 @@ class BaseModel(SQLModel):
             await session.refresh(signal_instance)
             return signal_instance
         except Exception as e:
-            await session.rollback()
             logger.error(f"Error in add operation: {e}")
             raise
 
@@ -161,7 +162,7 @@ class BaseModel(SQLModel):
             # Include other model
             for rel_name, rel_attr in inspect(cls).relationships.items():
                 if isinstance(rel_attr, RelationshipProperty):
-                    query = query.options(joinedload(rel_attr))
+                    query = query.options(selectinload(rel_attr))
 
             query = cls._apply_simple_filter(query, filters)
             query = cls._apply_operator_filter(query, filters)
@@ -204,26 +205,24 @@ class BaseModel(SQLModel):
             instances = []
             query = select(cls).where(filters)
             result = await session.execute(query)
-            rows = result.all()
+            rows = result.unique().all()
 
-            # Update all instances in batch, then single commit
+            # Update all instances in batch
             for row in rows:
                 instance = row[0]
                 for key, value in fields_to_update.items():
                     setattr(instance, key, value)
                 instances.append(instance)
 
-            # Single commit for all updates
+            # Commit changes before expunging
             if instances:
                 await session.commit()
-                # Refresh all instances
                 for instance in instances:
                     await session.refresh(instance)
                     session.expunge(instance)
 
             return instances
         except Exception as e:
-            await session.rollback()
             logger.error(f"Error in update operation: {e}")
             raise
 
@@ -258,15 +257,14 @@ class BaseModel(SQLModel):
         session = await get_current_async_session()
         try:
             result = await session.execute(stmt)
-            await session.commit()
             row = result.first()
             if row is None:
                 return None
             instance = row[0]
+            await session.commit()
             await session.refresh(instance)
             return instance
         except Exception as e:
-            await session.rollback()
             logger.error(f"Error in upsert operation: {e}")
             raise
 
@@ -285,15 +283,19 @@ class BaseModel(SQLModel):
             rows = result.all()
             deleted = len(rows)
 
-            # Delete all instances in batch, then single commit
+            # Delete all instances in batch
             for row in rows:
                 await session.delete(row[0])
-
+            
+            # Commit deletions
             if deleted > 0:
                 await session.commit()
 
             return deleted
         except Exception as e:
-            await session.rollback()
             logger.error(f"Error in delete operation: {e}")
             raise
+
+
+class BaseModel(DatabaseMethodsMixin, SQLModel):
+    pass

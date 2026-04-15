@@ -84,7 +84,7 @@
 
     .community-indicators {
         display: grid;
-        grid-template-rows: 1fr 1fr;
+        grid-template-rows: 1fr 1fr 1fr;
         gap: 0.5rem;
         align-items: center;
         justify-content: center;
@@ -105,7 +105,7 @@
         display: flex;
         flex-direction: column;
         justify-content: space-between;
-        min-height: 120px;
+        min-height: 160px;
     }
 
     .card-content .columns {
@@ -113,6 +113,18 @@
         display: flex;
         flex-direction: column;
         justify-content: space-between;
+    }
+
+    .event-count-indicator {
+        background-color: hsl(48, 100%, 90%);
+        color: #333;
+        padding: 0.5rem 1.5rem;
+        border-radius: 4px;
+        text-align: center;
+        display: block;
+        width: 180px;
+        font-size: 0.875rem;
+        font-weight: bold;
     }
 </style>
 {% endblock %}
@@ -129,7 +141,6 @@
     <div x-show="activeTab === 'events'" style="width: 100%;">
         <button class="button is-success" @click="handleCommunityAction('add', null, 'event')">Add event community manually</button>
         <button class="button is-success" @click="handleCommunityAction('auto_add_discord', null, 'event')">Add event community auto</button>
-        {# Use x-for to loop through the communities data #}
         <div class="columns is-multiline">
             <template x-for="community in communities" :key="community.id">
                 <div class="column is-one-fifth">
@@ -186,6 +197,27 @@
                                             </div>
                                         </template>
                                     </div>
+                                    <div class="indicator-slot">
+                                        <template x-if="community.event_count !== undefined">
+                                            <a :href="`/admin/events?community_id=${community.id}`">
+                                                <div class="event-count-indicator">
+                                                    <span class="icon">
+                                                        <i class="fas fa-calendar-check"></i>
+                                                    </span>
+                                                    <span x-text="`Events: ${community.event_count}`"></span>
+                                                </div>
+                                            </a>
+                                        </template>
+                                    </div>
+                                    <div class="indicator-slot">
+                                        <template x-if="community.languages">
+                                            <div class="event-languages-indicator">
+                                                <template x-for="language in community.languages.split(',')">
+                                                    <span class='tag is-info m-1'x-text="language"></span>
+                                                </template>
+                                            </div>
+                                        </template>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -211,7 +243,7 @@
     <div x-show="activeTab === 'streams'" style="width: 100%;">
         <button class="button is-success" @click="handleCommunityAction('add', null, 'stream')">Add stream community</button>
         <div class="columns is-multiline">
-             <template x-for="community in communities" :key="community.id">
+            <template x-for="community in communities" :key="community.id">
                 <div class="column is-one-fifth">
                     <div class="card">
                         <div class="card-image has-text-centered pt-4">

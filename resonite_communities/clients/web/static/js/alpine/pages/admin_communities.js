@@ -27,14 +27,14 @@ document.addEventListener('alpine:init', () => {
             const type = this.activeTab === 'events' ? 'event' : 'stream';
 
             try {
-                const response = await fetch(`/v2/admin/communities/?type=${type}`);
+                const response = await fetch(`/v2/admin/communities/?type=${type}`, {
+                    credentials: 'include'
+                });
                 if (!response.ok) {
                     throw new Error(`Failed to fetch ${type} community list data: ${response.statusText}`);
                 }
                 const data = await response.json();
                 this.communities = data;
-                console.log(this.communities)
-                console.log(`Reloaded ${type} community list data`);
             } catch (error) {
                 console.error(`Error reloading community list:`, error);
                 createNotification('Failed to reload community list', 'is-danger');
@@ -48,10 +48,54 @@ document.addEventListener('alpine:init', () => {
             let content = null;
             let saveFunc = null;
 
+            const validateRequiredFields = () => {
+                let isValid = true;
+
+                const requiredFields = ['name', 'external_id', 'platform', 'languages'];
+
+                const platformInput = document.querySelector('select[name="platform"]');
+                const platformValue = platformInput ? platformInput.value : '';
+
+                requiredFields.forEach(fieldName => {
+
+                    if (fieldName === 'languages' && platformValue == 'JSON_COMMUNITY_EVENT') {
+                        return;
+                    }
+
+                    const input = document.querySelector(`input[name="${fieldName}"], textarea[name="${fieldName}"], select[name="${fieldName}"]`);
+
+                    if (!input) {
+                        return;
+                    }
+
+                    if (!input.value.trim()) {
+                        input.required = true;
+                        let errorEl = document.querySelector(`.${fieldName}-error`);
+                        if (!errorEl) {
+                            errorEl = document.createElement('p');
+                            errorEl.className = `help ${fieldName}-error`;
+                            errorEl.style.color = 'red';
+                            input.parentElement.appendChild(errorEl);
+                        }
+                        errorEl.textContent = `Field is required`;
+                        isValid = false;
+                    } else {
+                        const errorEl = document.querySelector(`.${fieldName}-error`);
+                        if (errorEl) {
+                            input.required = false;
+                            errorEl.textContent = '';
+                        }
+                    }
+                });
+
+                return isValid;
+            };
+
             const performBackendAction = async (method, body = null) => {
                 try {
                     const response = await fetch(`/v2/admin/communities/${communityId || ''}`, {
                         method,
+                        credentials: 'include',
                         headers: {
                             'Content-Type': 'application/json',
                         },
@@ -63,7 +107,6 @@ document.addEventListener('alpine:init', () => {
                         throw new Error(`Failed to ${action} community: ${response.statusText}`);
                     }
 
-                    console.log(`${action} action successful`);
                     createNotification('Community update successfully', 'is-success');
                     this.reloadCommunityList();
                 } catch (error) {
@@ -97,8 +140,12 @@ document.addEventListener('alpine:init', () => {
                 case 'add':
                     title = `Add ${communityType} community`;
                     actionButton = 'Create';
-                    content = await getCommunityForm(null, communityType);
+                    content = await getCommunityForm('add', null, communityType);
                     saveFunc = async () => {
+                        if (!validateRequiredFields()) {
+                            return;
+                        }
+
                         const body = serializeFormData();
                         if (!body) return;
                         await performBackendAction('POST', body);
@@ -121,6 +168,7 @@ document.addEventListener('alpine:init', () => {
                         try {
                             const response = await fetch(`/v2/admin/setup/communities/discord/import/${body.selectedCommunityId || ''}`, {
                                 method: 'POST',
+                                credentials: 'include',
                                 headers: {
                                     'Content-Type': 'application/json',
                                 },
@@ -144,8 +192,12 @@ document.addEventListener('alpine:init', () => {
                 case 'edit':
                     title = `Edit ${communityType} Community`;
                     actionButton = 'Save';
-                    content = await getCommunityForm(communityId, communityType);
+                    content = await getCommunityForm('edit', communityId, communityType);
                     saveFunc = async () => {
+                        if (!validateRequiredFields()) {
+                            return;
+                        }
+
                         const body = serializeFormData();
                         if (!body) return;
                         await performBackendAction('PATCH', body);
@@ -182,7 +234,9 @@ document.addEventListener('alpine:init', () => {
 async function getListDiscordCommunities() {
     let communitiesList = {};
     try {
-        const response = await fetch(`/v2/admin/setup/communities/discord/`);
+        const response = await fetch(`/v2/admin/setup/communities/discord/`, {
+            credentials: 'include'
+        });
         if (!response.ok) {
             throw new Error(`Failed to fetch Discord community list: ${response.statusText}`);
         }
@@ -211,7 +265,33 @@ async function getListDiscordCommunities() {
 
 
             <div class="">
-                ${communities.map(c => `
+                ${communities.map(c => {
+
+                    let updateAtText = '--';
+                    let updateAtBgColor = '#EDE9FE';
+                    let updateAtFgColor = '#5B21B6';
+
+
+                    if (c.updated_at) {
+                        updateAtDate = new Date(c.updated_at);
+                        updateAtText = updateAtDate.toISOString().split('T')[0];
+
+                        const nowDate = new Date();
+                        const diffDays = (nowDate - updateAtDate) / (1000 * 60 * 60 * 24);
+
+                        if (diffDays < 7) {
+                            updateAtBgColor = '#DCFCE7';
+                            updateAtFgColor = '#166534';
+                        } else if (diffDays < 15) {
+                            updateAtBgColor = '#FEF3C7';
+                            updateAtFgColor = '#62400E';
+                        } else {
+                            updateAtBgColor = '#FEE2E2';
+                            updateAtFgColor = '#991B1B';
+                        }
+                    }
+
+                    return `
                     <label class="box cursor-pointer" style="display: block">
                         <div class="columns is-vcentered">
                             <div class="column py-0 is-1">
@@ -227,32 +307,70 @@ async function getListDiscordCommunities() {
                                             <strong>${c.name}</strong><br>
                                             <span class="has-text-grey">${c.default_description || 'No description available'}</span><br>
                                             <small><strong>ID:</strong> ${c.external_id}</small>
+                                            <div>
+                                                <span class="tag" style="background-color: #DBEAFE; color: #1E3A8A;">First seen: ${c.created_at ? c.created_at.split('T')[0] : '--'}</span><span class="tag" style="background-color: ${updateAtBgColor}; color: ${updateAtFgColor}">Last seen: ${updateAtText}</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </label>
-                `).join('')}
+                    `;
+                }).join('')}
             </div>
         </form>
     `;
     return formHTML;
 }
 
-async function getCommunityForm(communityId = null, communityType = null) {
+async function getCommunityForm(action, communityId = null, communityType = null) {
     let communityData = {};
-    if (communityId) {
+
+    if (action == 'edit') {
+        if (!communityId) {
+            return "Error: can't load form. No community id."
+        }
+
         try {
-            const response = await fetch(`/v2/admin/communities/${communityId}`);
+            const response = await fetch(`/v2/admin/communities/${communityId}`, {
+                credentials: 'include'
+            });
             if (!response.ok) {
                 throw new Error(`Failed to fetch community data: ${response.statusText}`);
             }
             communityData = await response.json();
         } catch (error) {
             console.error("Error fetching community data:", error);
+            return "Error: can't load form. Failed to fetch community data."
+        }
+
+        if (!communityData) {
+            return "Error: can't load form. No community data."
         }
     }
+
+    let communityRemoteListings = ''
+
+    if (communityData.platform_on_remote) {
+        try {
+            const response = await fetch(`/v2/admin/communities?type=remote`, {
+                credentials: 'include'
+            });
+            if (!response.ok) {
+                throw new Error(`Failed to fetch any JSON_COMMUNITY_EVENT communities : ${response.statusText}`);
+            }
+            communityRemoteListings = await response.json();
+        } catch (error) {
+            console.error("Error fetching community data:", error);
+            return "Error: can't load form. Failed to fetch any JSON_COMMUNITY_EVENT communities."
+        }
+
+        if (!communityRemoteListings) {
+            return "Error: can't load form. No remote communities data."
+        }
+    }
+
 
     const nameValue = communityData.name || '';
     const platformIdValue = communityData.external_id || '';
@@ -260,11 +378,13 @@ async function getCommunityForm(communityId = null, communityType = null) {
     const platformOnRemoteValue = communityData.platform_on_remote || '';
     const urlValue = communityData.url || '';
     const tagsValue = communityData.tags || '';
+    const languagesValue = communityData.languages || '';
     const descriptionValue = communityData.description || '';
     const isCustomDescription = communityData.is_custom_description || '';
     const privateRoleIdValue = communityData.private_role_id || '';
     const privateChannelIdValue = communityData.private_channel_id || '';
     const eventsURLValue = communityData.events_url || '';
+    const communityConfigurator = communityData.community_configurator || '';
 
     let formOptions = '';
     let formCommunityConfiguration = '';
@@ -302,7 +422,9 @@ async function getCommunityForm(communityId = null, communityType = null) {
             `
         } else if (platformValue === 'JSON_COMMUNITY_EVENT') {
             try {
-                const local_response = await fetch(`/v2/communities`);
+                const local_response = await fetch(`/v2/communities`, {
+                    credentials: 'include'
+                });
                 if (!local_response.ok) {
                     throw new Error(`Failed to fetch community data: ${local_response.statusText}`);
                 }
@@ -310,7 +432,6 @@ async function getCommunityForm(communityId = null, communityType = null) {
             } catch (error) {
                 console.error("Error fetching community data:", error);
             }
-            console.log(local_communities)
             try {
                 const remote_response = await fetch(`${eventsURLValue.replace(/\/+$/, '')}/v2/communities`);
                 if (!remote_response.ok) {
@@ -340,11 +461,11 @@ async function getCommunityForm(communityId = null, communityType = null) {
                                         <label class="box cursor-pointer" style="display: block; ${alreadyLocal ? 'background-color: #f5f5f5; color: #999;' : ''}">
                                             <div class="columns is-vcentered">
                                                 <div class="column py-0 is-1">
-                                                    <input 
-                                                        type="checkbox" 
-                                                        name="selected_community_external_ids" 
-                                                        value="${c.id}" 
-                                                        class="mr-2" 
+                                                    <input
+                                                        type="checkbox"
+                                                        name="selected_community_external_ids"
+                                                        value="${c.id}"
+                                                        class="mr-2"
                                                         ${alreadyLocal ? 'disabled' : ''}
                                                     >
                                                 </div>
@@ -395,6 +516,76 @@ async function getCommunityForm(communityId = null, communityType = null) {
         <p class="help">This is the default description set from Discord, any update to this description can be reset later.</p>
         `
     }
+    descriptionField = `
+    <div class="field">
+        <label class="label">Description</label>
+        <div class="control">
+            <textarea name="description" class="textarea" placeholder="Description">${descriptionValue}</textarea>
+        </div>
+        ${descriptionHelp}
+    </div>
+    `
+
+    tagsField = `
+    <div class="field">
+        <label class="label">Tags</label>
+        <div class="control">
+            <input name="tags" class="input" type="text" value="${tagsValue}" placeholder="Tags (comma-separated)">
+        </div>
+        <p class="help">Tags are separated with a comma.</p>
+    </div>
+    `
+
+    languagesField = `
+    <div class="field">
+        <label class="label">Languages</label>
+        <div class="control">
+            <input name="languages" class="input" type="text" value="${languagesValue}" placeholder="Languages (comma-separated)">
+        </div>
+        <p class="help">Code are in <a href='https://en.wikipedia.org/wiki/List_of_ISO_639_language_codes'>ISO 639-1 Code</a> format, separated with a coma. The language on the most left is used as default for events without language set.</p>
+    </div>
+    `
+
+    urlField = `
+    <div class="field">
+        <label class="label">URL</label>
+        <div class="control">
+            <input name="url" class="input" type="text" value="${urlValue}" placeholder="Community URL">
+        </div>
+    </div>
+    `
+
+    let communityRemoteListingsField = ''
+    let communityRemoteListingsFormOptions = ''
+
+    if (communityRemoteListings) {
+        communityRemoteListings.forEach(communityRemote => {
+            communityRemoteListingsFormOptions += `
+            <option ${communityConfigurator === communityRemote.id ? 'selected' : ''} value='${communityRemote.id}'>${communityRemote.name}</option>
+            `
+            }
+        )
+
+        communityRemoteListingsField = `
+        <div class="field">
+            <label class="label">Community Remote Listing</label>
+            <div class="control">
+                <div class="select">
+                    <select name="community_configurator">
+                        ${communityRemoteListingsFormOptions}
+                    </select>
+                </div>
+            </div>
+        </div>
+        `
+    }
+
+    if (platformValue == 'JSON_COMMUNITY_EVENT') {
+        urlField = ``
+        tagsField = ``
+        languagesField = ``
+        descriptionField = ``
+    }
 
     return `
         <div class="field">
@@ -419,26 +610,11 @@ async function getCommunityForm(communityId = null, communityType = null) {
                 </div>
             </div>
         </div>
-        <div class="field">
-            <label class="label">URL</label>
-            <div class="control">
-                <input name="url" class="input" type="text" value="${urlValue}" placeholder="Community URL">
-            </div>
-        </div>
-        <div class="field">
-            <label class="label">Tags</label>
-            <div class="control">
-                <input name="tags" class="input" type="text" value="${tagsValue}" placeholder="Tags (comma-separated)">
-            </div>
-            <p class="help">Tags are separated with a comma.</p>
-        </div>
-        <div class="field">
-            <label class="label">Description</label>
-            <div class="control">
-                <textarea name="description" class="textarea" placeholder="Description">${descriptionValue}</textarea>
-            </div>
-            ${descriptionHelp}
-        </div>
+        ${communityRemoteListingsField}
+        ${urlField}
+        ${tagsField}
+        ${languagesField}
+        ${descriptionField}
         ${formCommunityConfiguration}
     `;
 }
@@ -446,7 +622,9 @@ async function getCommunityForm(communityId = null, communityType = null) {
 async function getCommunityInfo(communityId = null, communityType = null) {
     let communityData = {};
     try {
-        const response = await fetch(`/v2/admin/communities/${communityId}`);
+        const response = await fetch(`/v2/admin/communities/${communityId}`, {
+            credentials: 'include'
+        });
 
         if (!response.ok) {
             throw new Error(`Failed to fetch community info: ${response.statusText}`);
@@ -473,6 +651,7 @@ async function getCommunityInfo(communityId = null, communityType = null) {
         <p><strong>Platform:</strong> ${communityData.platform || 'N/A'}</p>
         <p><strong>URL:</strong> <a href="${communityData.url || '#'}" target="_blank">${communityData.url || 'N/A'}</a></p>
         <p><strong>Tags:</strong> ${communityData.tags || 'N/A'}</p>
+        <p><strong>Languages:</strong> ${communityData.languages || 'N/A'}</p>
         <p><strong>Description:</strong> ${communityData.description || 'N/A'}</p>
         ${formCommunityConfiguration}
     `;
