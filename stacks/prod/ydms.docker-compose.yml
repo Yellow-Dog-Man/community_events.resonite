@@ -49,6 +49,7 @@ services:
       - DISCORD_REDIRECT_URL=${DISCORD_REDIRECT_URL}
       - PUBLIC_DOMAIN=${PUBLIC_DOMAIN}
       - PRIVATE_DOMAIN=${PRIVATE_DOMAIN}
+      - API_CLIENT_URL=${API_CLIENT_URL}
     depends_on:
       database:
         condition: service_healthy
@@ -77,6 +78,7 @@ services:
       - DISCORD_REDIRECT_URL=${DISCORD_REDIRECT_URL}
       - PUBLIC_DOMAIN=${PUBLIC_DOMAIN}
       - PRIVATE_DOMAIN=${PRIVATE_DOMAIN}
+      - API_CLIENT_URL=${API_CLIENT_URL}
     depends_on:
       migrations:
         condition: service_completed_successfully
@@ -111,6 +113,7 @@ services:
       - DISCORD_REDIRECT_URL=${DISCORD_REDIRECT_URL}
       - PUBLIC_DOMAIN=${PUBLIC_DOMAIN}
       - PRIVATE_DOMAIN=${PRIVATE_DOMAIN}
+      - API_CLIENT_URL=${API_CLIENT_URL}
 
   web_client:
     build: ../..
@@ -140,6 +143,7 @@ services:
       - DISCORD_REDIRECT_URL=${DISCORD_REDIRECT_URL}
       - PUBLIC_DOMAIN=${PUBLIC_DOMAIN}
       - PRIVATE_DOMAIN=${PRIVATE_DOMAIN}
+      - API_CLIENT_URL=${API_CLIENT_URL}
 
   cache:
     image: redis:7.0-alpine
