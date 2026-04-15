@@ -28,7 +28,7 @@ from resonite_communities.models.community import Community
 
 config_manager = ConfigManager()
 
-if config_manager.infrastructure_config.SENTRY_DSN:
+if "SENTRY_DSN" in config_manager.infrastructure_config:
 
     sentry_sdk.init(
         dsn=config_manager.infrastructure_config.SENTRY_DSN,
