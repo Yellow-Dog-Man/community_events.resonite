@@ -43,6 +43,7 @@ class ConfigManager:
     def _load_infrastructure_config(self):
         optional_vars = [
             'PRIVATE_DOMAIN',
+            'SENTRY_DSN'
             'DB_POOL_SIZE',
             'DB_MAX_OVERFLOW',
             'DB_POOL_TIMEOUT',
@@ -59,11 +60,10 @@ class ConfigManager:
             'DATABASE_URL',
             'SECRET_KEY',
             'SECRET',
+            'API_CLIENT_URL',
             'DISCORD_CLIENT_ID',
             'DISCORD_SECRET',
             'DISCORD_REDIRECT_URL',
-            'SENTRY_DSN',
-            'API_CLIENT_URL',
         ]
 
         defaults = {

@@ -57,6 +57,6 @@ async def render_main(request: Request, user_auth: UserAuthModel, tab: str):
             'user_communities' : user_communities,
             'retry_after' : user_auth.discord_account.discord_update_retry_after if user_auth else None,
             'userlogo' : logo_base64,
-            'discord_auth_url': '/auth/login/discord',
+            'discord_auth_url': '',
         }
     )

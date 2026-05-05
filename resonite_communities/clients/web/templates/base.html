@@ -236,7 +236,6 @@ c
                     {% else %}
                     <h1 class="title has-text-primary-95">{{ app_config.TITLE_TEXT }}</h1>
                     {% endif %}
-                    <h2 class="subtitle has-text-primary-95"><strong>Non</strong> Exhaustive Communites Events Aggregator</h2>
                 </div>
               </a>
             </div>
@@ -289,12 +288,12 @@ c
 
           </div>
         {% else %}
-          <div class="container has-text-centered">
+          <!-- <div class="container has-text-centered">
               <p class="m-1">To see private events from communities you are part of you must login.</p>
               <a href="{{ discord_auth_url }}" class="button is-info">
                   Login with Discord
               </a>
-          </div>
+          </div> -->
         {% endif %}
         </div>
         {% endif %}
@@ -315,12 +314,9 @@ c
   <footer class="footer">
     <div class="content has-text-centered">
       <p>
-        {% if not app_config.FOOTER_TEXT %}
-        <strong>Resonite communites</strong> by GrayBoltWolf and <a href="https://brodokk.space">Brodokk</a>.
-        Website and API <a href="https://github.com/Resonite-Community-Projects/community_events.resonite">source code</a>.
-        {% else %}
-        {{ app_config.FOOTER_TEXT }}
-        {% endif %}
+        <!-- The configuration panel keeps malforming FOOTER_TEXT on save, due to this I am manually overriding it for now.-->
+        <strong>Resonite communities</strong> by GrayBoltWolf and <a href="https://brodokk.space">Brodokk</a>.
+        Website and API <a href="https://github.com/Resonite-Community-Projects/community_events.resonite">source code</a>. Resonite official instance. Hosted by <a href="https://yellowdogman.com">Yellow Dog Man Studios</a>.
       </p>
     </div>
   </footer>

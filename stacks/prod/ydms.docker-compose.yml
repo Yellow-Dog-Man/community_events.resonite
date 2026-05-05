@@ -1,0 +1,171 @@
+services:
+  database:
+    image: postgres:16
+    profiles:
+      - database
+    restart: unless-stopped
+    expose:
+      - 5432
+    secrets:
+      - postgres_password
+      - postgres_user
+      - postgres_db
+    environment:
+      - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
+      - POSTGRES_USER_FILE=/run/secrets/postgres_user
+      - POSTGRES_DB_FILE=/run/secrets/postgres_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$(cat /run/secrets/postgres_user)"]
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+
+  migrations:
+    build: ../..
+    command: >
+      /bin/bash -c "
+      poetry run alembic upgrade heads;
+      EXIT_CODE=$?;
+      if [ $EXIT_CODE -ne 0 ]; then
+        echo 'Alembic migration failed with exit code' $EXIT_CODE;
+        exit $EXIT_CODE;
+      fi
+      "
+    secrets:
+      - database_url
+      - discord_secret
+      - secret
+      - secret_key
+    environment:
+      - DATABASE_URL_FILE=/run/secrets/database_url
+      - DISCORD_SECRET_FILE=/run/secrets/discord_secret
+      - SECRET_FILE=/run/secrets/secret
+      - SECRET_KEY_FILE=/run/secrets/secret_key
+      - CACHE_URL=${CACHE_URL}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+      - DISCORD_REDIRECT_URL=${DISCORD_REDIRECT_URL}
+      - PUBLIC_DOMAIN=${PUBLIC_DOMAIN}
+      - PRIVATE_DOMAIN=${PRIVATE_DOMAIN}
+      - API_CLIENT_URL=${API_CLIENT_URL}
+    depends_on:
+      database:
+        condition: service_healthy
+    profiles:
+      - manager
+      - client
+
+  signals_manager:
+    build: ../..
+    restart: always
+    command: poetry run signals_manager
+    profiles:
+      - manager
+    secrets:
+      - database_url
+      - discord_secret
+      - secret
+      - secret_key
+    environment:
+      - DATABASE_URL_FILE=/run/secrets/database_url
+      - DISCORD_SECRET_FILE=/run/secrets/discord_secret
+      - SECRET_FILE=/run/secrets/secret
+      - SECRET_KEY_FILE=/run/secrets/secret_key
+      - CACHE_URL=${CACHE_URL}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+      - DISCORD_REDIRECT_URL=${DISCORD_REDIRECT_URL}
+      - PUBLIC_DOMAIN=${PUBLIC_DOMAIN}
+      - PRIVATE_DOMAIN=${PRIVATE_DOMAIN}
+      - API_CLIENT_URL=${API_CLIENT_URL}
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      database:
+        condition: service_healthy
+
+  api_client:
+    build: ../..
+    restart: always
+    ports:
+      - '8100:8000'
+    profiles:
+      - client
+    command: poetry run api_client
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      database:
+        condition: service_healthy
+    secrets:
+      - database_url
+      - discord_secret
+      - secret
+      - secret_key
+    environment:
+      - DATABASE_URL_FILE=/run/secrets/database_url
+      - DISCORD_SECRET_FILE=/run/secrets/discord_secret
+      - SECRET_FILE=/run/secrets/secret
+      - SECRET_KEY_FILE=/run/secrets/secret_key
+      - CACHE_URL=${CACHE_URL}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+      - DISCORD_REDIRECT_URL=${DISCORD_REDIRECT_URL}
+      - PUBLIC_DOMAIN=${PUBLIC_DOMAIN}
+      - PRIVATE_DOMAIN=${PRIVATE_DOMAIN}
+      - API_CLIENT_URL=${API_CLIENT_URL}
+
+  web_client:
+    build: ../..
+    restart: always
+    ports:
+      - '8101:8001'
+    profiles:
+      - client
+    command: poetry run web_client
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      database:
+        condition: service_healthy
+    secrets:
+      - database_url
+      - discord_secret
+      - secret
+      - secret_key
+    environment:
+      - DATABASE_URL_FILE=/run/secrets/database_url
+      - DISCORD_SECRET_FILE=/run/secrets/discord_secret
+      - SECRET_FILE=/run/secrets/secret
+      - SECRET_KEY_FILE=/run/secrets/secret_key
+      - CACHE_URL=${CACHE_URL}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+      - DISCORD_REDIRECT_URL=${DISCORD_REDIRECT_URL}
+      - PUBLIC_DOMAIN=${PUBLIC_DOMAIN}
+      - PRIVATE_DOMAIN=${PRIVATE_DOMAIN}
+      - API_CLIENT_URL=${API_CLIENT_URL}
+
+  cache:
+    image: redis:7.0-alpine
+    restart: always
+    command: redis-server --save ""
+
+secrets:
+  postgres_password:
+    environment: POSTGRES_PASSWORD
+  postgres_user:
+    environment: POSTGRES_USER
+  postgres_db:
+    environment: POSTGRES_DB
+  database_url:
+    environment: DATABASE_URL
+  discord_secret:
+    environment: DISCORD_SECRET
+  secret:
+    environment: SECRET
+  secret_key:
+    environment: SECRET_KEY
+
+volumes:
+  postgres_data:
+    driver: local
