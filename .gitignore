@@ -163,6 +163,9 @@ credentials.json
 GeoLite2-Country.mmdb
 backups/*
 data/*
+.envrc.d/*
+env.d/*
+config.toml*
 config.YDMS.toml
 migrations/versions/initialize_default_config.py
 .envrc.d/*
