@@ -39,16 +39,8 @@ services:
       start_period: 30s
 
   migrations_community:
-    build: ../..
-    command: >
-      /bin/bash -c "
-      poetry run alembic upgrade head;
-      EXIT_CODE=$?;
-      if [ $EXIT_CODE -ne 0 ]; then
-        echo 'Alembic migration failed with exit code' $EXIT_CODE;
-        exit $EXIT_CODE;
-      fi
-      "
+    image: ghcr.io/resonite-community-projects/community_events.resonite:dev
+    command: /bin/bash -c "set -e; poetry run alembic upgrade head"
     secrets:
       - database_url
       - discord_secret
@@ -75,7 +67,7 @@ services:
       - api_client
 
   signals_manager_community:
-    build: ../..
+    image: ghcr.io/resonite-community-projects/community_events.resonite:dev
     restart: always
     command: poetry run signals_manager
     profiles:
@@ -105,7 +97,7 @@ services:
       - API_CLIENT_URL=${API_CLIENT_URL}
 
   api_client_community:
-    build: ../..
+    image: ghcr.io/resonite-community-projects/community_events.resonite:dev
     restart: always
     profiles:
       - client
@@ -173,7 +165,7 @@ services:
       - traefik.http.routers.api_v2_client_legacy_public_community.middlewares=dev_cors_community
 
   web_client_community:
-    build: ../..
+    image: ghcr.io/resonite-community-projects/community_events.resonite:dev
     restart: always
     profiles:
       - client

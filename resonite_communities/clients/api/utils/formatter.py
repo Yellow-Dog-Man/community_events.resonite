@@ -29,7 +29,7 @@ separators = {
 def clean_text(text):
     """ Remove all invalid characters for text_dumps. """
     if text:
-        text = text.replace('`', ' ')
+        text = text.replace('`', '')
         text = text.replace('\n\n', ' ')
         text = text.replace('\n\r', ' ')
         text = text.replace('\n', ' ')
@@ -42,7 +42,7 @@ def text_dumps(events, version):
     """ Convert the Python Dictionary to a text string. """
 
     if version not in separators:
-        raise ValueError("Unsported version.")
+        raise ValueError("Unsupported version.")
     field_separator = separators[version]['field']
     object_separator = separators[version]['object']
 
@@ -176,10 +176,12 @@ async def get_filtered_events(
 
         # Determine if an event is either active or upcoming by comparing end_time or start_time with the current time.
         # If end_time is available, it will be used; otherwise, fallback to start_time.
-        time_filter = case(
-            (Event.end_time.isnot(None), Event.end_time),  # Use end_time if it's not None
-            else_=Event.start_time  # Otherwise, fallback to start_time
-        ) >= datetime.utcnow()  # Event is considered active or upcoming if the time is greater than or equal to now
+        # Event is considered active or upcoming if the time is greater than or equal to now
+        now = datetime.utcnow()
+        time_filter = or_(
+            and_(Event.end_time.isnot(None), Event.end_time >= now),
+            and_(Event.end_time.is_(None), Event.start_time >= now)
+        )
 
         # Determine the languages
         if languages:
